@@ -14,7 +14,7 @@
     android:layout_height="wrap_content"
     android:textColor="#ffffff"
     android:textSize="60dp"
-    android:text="Hello World! Try clicking the screen"
+    android:text="Hello EGL!"
     />
 </RelativeLayout>
 

@@ -168,6 +168,8 @@ bool Renderer::initialize()
     EGLint width;
     EGLint height;
     GLfloat ratio;
+    EGLint major;
+    EGLint minor;
     
     LOG_INFO("Initializing context");
     
@@ -175,15 +177,72 @@ bool Renderer::initialize()
         LOG_ERROR("eglGetDisplay() returned error %d", eglGetError());
         return false;
     }
-    if (!eglInitialize(display, 0, 0)) {
+
+    if (!eglInitialize(display, &major, &minor)) {
         LOG_ERROR("eglInitialize() returned error %d", eglGetError());
         return false;
+    }else{
+             LOG_INFO("EGL version: major=%d, minor=%d",major, minor);
+    }
+//-------eglQueryString---------
+    const char * vendor;
+    const char * version;
+    const char * extensions;
+    vendor = eglQueryString(display, EGL_VENDOR);
+    LOG_INFO("EGL vendor:%s",vendor);
+
+    version = eglQueryString(display, EGL_VERSION);
+    LOG_INFO("EGL version:%s",version);
+
+    extensions = eglQueryString(display, EGL_EXTENSIONS);
+    LOG_INFO("EGL extensions:%s",extensions);
+//---------------------------------
+
+    EGLint num_configs;
+    EGLConfig * configs_list;
+    //find how many configurations are supported
+    if(!eglGetConfigs(display, NULL, 0, &num_configs)){
+        return false;
+    }else{
+        LOG_INFO("Configurations supported number: %d", num_configs);
+    }
+    //configs_list = static_cast<EGLConfig *> (malloc(num_configs * sizeof(EGLConfig)));
+    configs_list = new EGLConfig[num_configs];
+
+    //Get configurations
+    if (!eglGetConfigs(display, configs_list, num_configs, &num_configs)) {
+            LOG_ERROR("eglGetConfig() returned error %d", eglGetError());
+            destroy();
+            return false;
+        }else{
+            EGLint value;
+            LOG_INFO("Configurations get-||||||||");
+            for(int i=0; i<num_configs; i++){
+                if(!eglGetConfigAttrib(display, configs_list[i], EGL_RED_SIZE, &value))
+                {
+                    LOG_ERROR("eglGetConfigAttrib() returned error %d", eglGetError());
+                    return false;
+                }else{
+                    LOG_INFO("     Config[%d] EGL_RED_SIZE:%d", i, value);
+                }
+            }
+        }
+    //Get max number of configs choosed
+    if (!eglChooseConfig(display, attribs, NULL, 0, &numConfigs)) {
+        LOG_ERROR("eglChooseConfig() returned error %d", eglGetError());
+        destroy();
+        return false;
+    }else{
+        LOG_INFO("eglChooseConfig get config max number: %d",numConfigs);
     }
 
+    //Just use the first one as our config
     if (!eglChooseConfig(display, attribs, &config, 1, &numConfigs)) {
         LOG_ERROR("eglChooseConfig() returned error %d", eglGetError());
         destroy();
         return false;
+    }else{
+        LOG_INFO("eglChooseConfig get config number: %d",numConfigs);
     }
 
     if (!eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID, &format)) {
@@ -194,13 +253,23 @@ bool Renderer::initialize()
 
     ANativeWindow_setBuffersGeometry(_window, 0, 0, format);
 
-    if (!(surface = eglCreateWindowSurface(display, config, _window, 0))) {
+    EGLint surfaceAttribList[] = {
+        EGL_RENDER_BUFFER, EGL_SINGLE_BUFFER,
+        EGL_NONE
+    };
+    //if (!(surface = eglCreateWindowSurface(display, config, _window, 0))) {
+    if (!(surface = eglCreateWindowSurface(display, config, _window, surfaceAttribList))) {
         LOG_ERROR("eglCreateWindowSurface() returned error %d", eglGetError());
         destroy();
         return false;
     }
-    
-    if (!(context = eglCreateContext(display, config, 0, 0))) {
+
+    EGLint contextAttribList[] = {
+            EGL_CONTEXT_CLIENT_VERSION, 1,
+            EGL_NONE
+        };
+    //if (!(context = eglCreateContext(display, config, 0, 0))) {
+    if (!(context = eglCreateContext(display, config, 0, contextAttribList))) {
         LOG_ERROR("eglCreateContext() returned error %d", eglGetError());
         destroy();
         return false;
@@ -217,6 +286,8 @@ bool Renderer::initialize()
         LOG_ERROR("eglQuerySurface() returned error %d", eglGetError());
         destroy();
         return false;
+    }else{
+        LOG_INFO("Surface size is %d x %d",width, height);
     }
 
     _display = display;
@@ -237,6 +308,7 @@ bool Renderer::initialize()
     glLoadIdentity();
     glFrustumf(-ratio, ratio, -1, 1, 1, 10);
 
+    delete configs_list;
     return true;
 }
 
