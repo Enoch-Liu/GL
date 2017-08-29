@@ -5,7 +5,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.2.0'
+        classpath 'com.android.tools.build:gradle:2.3.3'
         //classpath 'com.android.tools.build:gradle:2.2.1'
     }
 }
@@ -14,17 +14,17 @@ apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion 22
-    buildToolsVersion "22.0.1"
+    buildToolsVersion '25.0.0'
 
     defaultConfig {
         ndk {
             moduleName "nativeegl"
-            ldLibs "log", "android", "EGL", "GLESv1_CM"
+            ldLibs "log", "android", "EGL", "GLESv2"
         }
     }
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '2.1'
+    gradleVersion = '3.3'
 }
 

@@ -20,6 +20,9 @@
 #include <pthread.h>
 #include <EGL/egl.h> // requires ndk r5 or newer
 #include <GLES/gl.h>
+#include <GLES3/gl3.h>
+#include <GLES3/gl3ext.h>
+#include <EGL/eglext.h>
 
 
 class Renderer {
@@ -67,6 +70,7 @@ private:
     // Helper method for starting the thread 
     static void* threadStartCallback(void *myself);
 
+    void initShader();
 };
 
 #endif // RENDERER_H
