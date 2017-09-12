@@ -20,9 +20,12 @@
 #include <pthread.h>
 #include <EGL/egl.h> // requires ndk r5 or newer
 #include <GLES/gl.h>
-#include <GLES3/gl3.h>
+//#include <GLES3/gl3.h>
+#include <GLES3/gl31.h>
 #include <GLES3/gl3ext.h>
 #include <EGL/eglext.h>
+
+#include "DrawData.h"
 
 
 class Renderer {
@@ -35,6 +38,8 @@ public:
     // They send message to render thread which executes required actions.
     void start();
     void stop();
+    inline void changeMode() { //OPENMSAA = ~OPENMSAA;
+        return;};
     void setWindow(ANativeWindow* window);
     
     
@@ -52,25 +57,46 @@ private:
     
     // android window, supported by NDK r5 and newer
     ANativeWindow* _window;
+//    bool OPENMSAA;
 
     EGLDisplay _display;
     EGLSurface _surface;
     EGLContext _context;
     GLfloat _angle;
+    int m_width;
+    int m_height;
+    GLuint m_MSColor;
+    GLuint m_MSFBO;
+    GLuint m_MSDepth;
+    GLuint m_program;
+    GLuint m_vertexShader;
+    GLuint m_fragmentShader;
+    GLuint m_uMvp;
+    GLuint m_uColor;
+    GLuint m_p;
+    GLuint m_p1;
+
+   const bool OPENMSAA = true;
     
     // RenderLoop is called in a rendering thread started in start() method
     // It creates rendering context and renders scene until stop() is called
     void renderLoop();
+
+    void checkGLError(const char* str);
     
     bool initialize();
+    void MultisampleAntiAliasing();
     void destroy();
 
     void drawFrame();
+    void bindProg();
 
     // Helper method for starting the thread 
     static void* threadStartCallback(void *myself);
 
     void initShader();
+
+    bool CompileShader( const GLuint shader, const char * src );
 };
 
 #endif // RENDERER_H

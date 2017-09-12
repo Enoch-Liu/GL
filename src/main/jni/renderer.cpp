@@ -18,59 +18,36 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <android/native_window.h> // requires ndk r5 or newer
+#include <GLES3/gl31.h>
 
 #include "logger.h"
 #include "renderer.h"
 
 #define LOG_TAG "EglSample"
 
+const char *vertexSrc =
+        "attribute vec4 vPosition;          \n"
+                "attribute vec4 vPosition1;         \n"
+                "uniform mat4 uMVPMatrix;           \n"
+                "void main() {                      \n"
+                "  gl_Position = vPosition;\n"
+                "  gl_PointSize = 50.0; \n"
+                "}                                  \n";
+
+const char *fragmentSrc =
+        "precision mediump float;           \n"
+                "uniform vec4 vColor;               \n"
+                "void main() {                      \n"
+                "  gl_FragColor = vec4(0.0,1.0,0.0,1.0);           \n"
+                "}                                  \n";
+
 static void buildShader ();
-static void bindProg();
-
-static GLint vertices[][3] = {
-        {-0x10000, -0x10000, -0x10000},
-        {0x10000,  -0x10000, -0x10000},
-        {0x10000,  0x10000,  -0x10000},
-        {-0x10000, 0x10000,  -0x10000},
-        {-0x10000, -0x10000, 0x10000},
-        {0x10000,  -0x10000, 0x10000},
-        {0x10000,  0x10000,  0x10000},
-        {-0x10000, 0x10000,  0x10000}
-};
-
-static float squareCoords[]={
-        -0.5f, 0.0f, 0.0f, //top left
-        -0.0f, -0.5f, 0.0f, //bottom left
-        1.0f, -0.0f, 0.0f, //bottom right
-        0.0f, 1.0f, 0.0f, //top right
-};
-short drawOrder[] = {0,1,2,0,2,3};
-
-
-static GLint colors[][4] = {
-        {0x00000, 0x00000, 0x00000, 0x10000},
-        {0x10000, 0x00000, 0x00000, 0x10000},
-        {0x10000, 0x10000, 0x00000, 0x10000},
-        {0x00000, 0x10000, 0x00000, 0x10000},
-        {0x00000, 0x00000, 0x10000, 0x10000},
-        {0x10000, 0x00000, 0x10000, 0x10000},
-        {0x10000, 0x10000, 0x10000, 0x10000},
-        {0x00000, 0x10000, 0x10000, 0x10000}
-};
-
-GLubyte indices[] = {
-        0, 4, 5, 0, 5, 1,
-        1, 5, 6, 1, 6, 2,
-        2, 6, 7, 2, 7, 3,
-        3, 7, 4, 3, 4, 0,
-        4, 7, 6, 4, 6, 5,
-        3, 0, 1, 3, 1, 2
-};
-
+//static void bindProg();
 
 Renderer::Renderer()
         : _msg(MSG_NONE), _display(0), _surface(0), _context(0), _angle(0) {
     LOG_INFO("Renderer instance created");
+//    OPENMSAA = false;
     pthread_mutex_init(&_mutex, 0);
     return;
 }
@@ -111,66 +88,60 @@ void Renderer::setWindow(ANativeWindow *window) {
     return;
 }
 
+//bool bTestSwap = true;
+
 void Renderer::renderLoop() {
     bool renderingEnabled = true;
-
     LOG_INFO("renderLoop()");
-
     while (renderingEnabled) {
-
         pthread_mutex_lock(&_mutex);
-
         // process incoming messages
         switch (_msg) {
-
             case MSG_WINDOW_SET:
                 initialize();
                 initShader();
                 break;
-
             case MSG_RENDER_LOOP_EXIT:
                 renderingEnabled = false;
                 destroy();
                 break;
-
             default:
                 break;
         }
         _msg = MSG_NONE;
-
         if (_display) {
             drawFrame();
-//            LOG_INFO("xx....");
             if (!eglSwapBuffers(_display, _surface)) {
                 LOG_ERROR("eglSwapBuffers() returned error %d", eglGetError());
             }
         }
-
         pthread_mutex_unlock(&_mutex);
     }
-
     LOG_INFO("Render loop exits");
-
     return;
 }
 
 EGLint width;
 EGLint height;
-EGLDisplay display;
-EGLConfig config;
-EGLint numConfigs;
-EGLint format;
-EGLSurface surface;
-EGLContext context;
-
 GLfloat ratio;
 
 bool Renderer::initialize() {
+
+    EGLDisplay display;
+    EGLConfig config;
+    EGLint numConfigs;
+    EGLint format;
+    EGLSurface surface;
+    EGLContext context;
+
     const EGLint attribs[] = {
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+    //        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+            EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
             EGL_BLUE_SIZE, 8,
             EGL_GREEN_SIZE, 8,
             EGL_RED_SIZE, 8,
+            EGL_ALPHA_SIZE, 8,
             EGL_SAMPLE_BUFFERS, 1,
             EGL_SAMPLES, 4,
             EGL_NONE
@@ -263,11 +234,13 @@ bool Renderer::initialize() {
 //    ANativeWindow_setBuffersGeometry(_window, 0, 0, format);
 
     EGLint surfaceAttribList[] = {
-            EGL_RENDER_BUFFER, EGL_BACK_BUFFER,
+    //        EGL_RENDER_BUFFER, EGL_BACK_BUFFER,
+            EGL_WIDTH, 512,
+            EGL_HEIGHT, 512,
             EGL_NONE
     };
     //if (!(surface = eglCreateWindowSurface(display, config, _window, 0))) {
-    if (!(surface = eglCreateWindowSurface(display, config, _window, surfaceAttribList))) {
+    if (!(surface = eglCreatePbufferSurface(display, config, surfaceAttribList))) {
         LOG_ERROR("eglCreateWindowSurface() returned error %d", eglGetError());
         destroy();
         return false;
@@ -299,12 +272,13 @@ bool Renderer::initialize() {
         LOG_INFO("Surface size is %d x %d", width, height);
     }
 
+    m_height = height;
+    m_width = width;
+
     _display = display;
     _surface = surface;
     _context = context;
-
-/*
-//    Origin code, but GL_PERSPECTIVE_CORRECTION_HINT, GL_SMOOTH is undeclared.
+/*    Origin code, but GL_PERSPECTIVE_CORRECTION_HINT, GL_SMOOTH is undeclared.
 //    glDisable(GL_DITHER);
 //    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
 //    glClearColor(0, 0, 0, 0);
@@ -312,24 +286,26 @@ bool Renderer::initialize() {
 //    glShadeModel(GL_SMOOTH);
 //    glEnable(GL_DEPTH_TEST);
 */
-
     glViewport(0, 0, width, height);
 
-
-//    // Add by Enoch : Normal AA, GL_POINT_SMOOTH, GL_POINT_SMOOTH_HINT is undeclared.
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_POINT_SMOOTH);
-    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-
     ratio = (GLfloat) width / height;
-//    glMatrixMode(GL_PROJECTION);
+    /*
+//    // Add by Enoch : Normal AA, GL_POINT_SMOOTH, GL_POINT_SMOOTH_HINT is undeclared.
+//    glEnable(GL_DEPTH_TEST);
+//    glEnable(GL_POINT_SMOOTH);
+//    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+//    glEnable(GL_BLEND);
+//    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+     //    glMatrixMode(GL_PROJECTION);
 //    glLoadIdentity();
 //    glFrustumf(-ratio, ratio, -1, 1, 1, 10);
-
+     */
     delete configs_list;
+    if (OPENMSAA)
+    {
+        MultisampleAntiAliasing();
+    }
+
     return true;
 }
 
@@ -354,11 +330,20 @@ void Renderer::drawFrame() {
     static float g=0.2f;
     static float b=0.2f;
 
+    LOG_INFO("xxx %d, %d", m_width,m_height);
+    if (OPENMSAA)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, m_MSFBO);
+        glBindRenderbuffer(GL_RENDERBUFFER, m_MSColor);
+        checkGLError("BindTwoBuffers");
+    }
+
+    glViewport(0,0,m_width,m_height);
+    glScissor(0,0,m_width,m_height);
+
     glClearColor(r, g, b, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST);
-    glViewport(0,0,width,height);
-    glScissor(0,0,width,height);
 
     /*
 //    r += 0.01f;
@@ -380,49 +365,61 @@ void Renderer::drawFrame() {
 //    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_BYTE, indices);
 //    _angle += 1.2f;
 */
-    bindProg();
-}
+    const GLfloat landscapeOrientationMatrix[16] = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f };
+    const GLfloat color[4] = {
+            1.0f, 0.0f, 0.0f, 1.0f
+    };
+    glUseProgram( m_program );
+    glUniformMatrix4fv(m_uMvp, 1, GL_FALSE, landscapeOrientationMatrix);
+    glUniform4fv(m_uColor, 1, color);
+    m_p = glGetAttribLocation(m_program, "vPosition");
+    m_p1 = glGetAttribLocation(m_program, "vPosition1");
 
-void Renderer::initShader() {
-    buildShader();
+    glEnableVertexAttribArray( m_p );
+    glVertexAttribPointer( m_p , 3, GL_FLOAT, false, 3 * sizeof( float ), squareCoords);
+
+//    glLineWidth(80);
+    glDrawArrays(GL_POINTS, 0, 4);
+    glDisableVertexAttribArray( m_p );
+    glFlush();
+    checkGLError("Before Blit");
+    if (OPENMSAA)
+    {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_MSFBO);
+        checkGLError("BindReadBuffer");
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+//        glDrawBuffers(1, GL_BACK);
+        checkGLError("BindFramebuffer");
+        glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        checkGLError("BlitFramebufferColor");
+        glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+        checkGLError("BlitFramebufferDepth");
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    }
+
 }
 
 void *Renderer::threadStartCallback(void *myself) {
     Renderer *renderer = (Renderer *) myself;
-
-
     renderer->renderLoop();
     pthread_exit(0);
-
     return 0;
 }
 
-GLuint	program;
-GLuint	vertexShader;
-GLuint	fragmentShader;
-GLuint  uMvp;
-GLuint  uColor;
-GLuint  p;
-GLuint  p1;
+//GLuint	program;
+//GLuint	vertexShader;
+//GLuint	fragmentShader;
+//GLuint  uMvp;
+//GLuint  uColor;
+//GLuint  p;
+//GLuint  p1;
 
-const char *vertexSrc =
-        "attribute vec4 vPosition;          \n"
-                "attribute vec4 vPosition1;         \n"
-                "uniform mat4 uMVPMatrix;           \n"
-                "void main() {                      \n"
-                "  gl_Position = vPosition;\n"
-                "  gl_PointSize = 50.0; \n"
-                "}                                  \n";
-
-const char *fragmentSrc =
-        "precision mediump float;           \n"
-                "uniform vec4 vColor;               \n"
-                "void main() {                      \n"
-                "  gl_FragColor = vec4(0.0,1.0,0.0,1.0);           \n"
-                "}                                  \n";
-
-
-static bool CompileShader( const GLuint shader, const char * src ) {
+bool Renderer::CompileShader( const GLuint shader, const char * src ) {
     glShaderSource( shader, 1, &src, 0 );
     glCompileShader( shader );
 
@@ -439,88 +436,125 @@ static bool CompileShader( const GLuint shader, const char * src ) {
     return true;
 }
 
-static void buildShader () {
-    vertexShader = glCreateShader( GL_VERTEX_SHADER );
+void Renderer::initShader() {
+    m_vertexShader = glCreateShader( GL_VERTEX_SHADER );
     LOG_INFO("vertex shader \n%s", vertexSrc);
-    if ( !CompileShader( vertexShader, vertexSrc ) )
+    if ( !CompileShader( m_vertexShader, vertexSrc ) )
     {
         LOG_ERROR("Failed to compile vertex shader");
-
     }
-    fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
+    m_fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
     LOG_INFO("fragment shader %s", fragmentSrc);
-    if ( !CompileShader( fragmentShader, fragmentSrc ) )
+    if ( !CompileShader( m_fragmentShader, fragmentSrc ) )
     {
         LOG_ERROR("Failed to compile fragment shader");
     }
-    program = glCreateProgram();
+    m_program = glCreateProgram();
 
-    if(!program)
+    if(!m_program)
     {
         LOG_ERROR("Failed: glCreateProgram");
     }
 
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glBindAttribLocation(program, 0, "vPosition");
-    glBindAttribLocation(program, 1, "vPosition1");
+    glAttachShader(m_program, m_vertexShader);
+    glAttachShader(m_program, m_fragmentShader);
+    glBindAttribLocation(m_program, 0, "vPosition");
+    glBindAttribLocation(m_program, 1, "vPosition1");
 
-    glLinkProgram(program);
+    glLinkProgram(m_program);
 
     GLint status = 0;
-    glGetProgramiv(program, GL_LINK_STATUS, &status);
+    glGetProgramiv(m_program, GL_LINK_STATUS, &status);
 
     if(!status)
     {
         GLint info_length = 0;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &info_length);
+        glGetProgramiv(m_program, GL_INFO_LOG_LENGTH, &info_length);
         if(info_length)
         {
             char* buf = new char[info_length];
-            glGetProgramInfoLog(program, info_length, NULL, buf);
+            glGetProgramInfoLog(m_program, info_length, NULL, buf);
             LOG_ERROR("create program failed\n%s\n", buf);
 
             delete[] buf;
         }
 
-        glDetachShader(program, vertexShader);
-        glDetachShader(program, fragmentShader);
-        glDeleteShader(vertexShader);
-        glDeleteShader(fragmentShader);
-        glDeleteProgram(program);
-        program = 0;
+        glDetachShader(m_program, m_vertexShader);
+        glDetachShader(m_program, m_fragmentShader);
+        glDeleteShader(m_vertexShader);
+        glDeleteShader(m_fragmentShader);
+        glDeleteProgram(m_program);
+        m_program = 0;
     }
 
-    uMvp = glGetUniformLocation( program, "uMVPMatrix");
-    uColor = glGetUniformLocation( program, "vColor");
+    m_uMvp = glGetUniformLocation( m_program, "uMVPMatrix");
+    m_uColor = glGetUniformLocation( m_program, "vColor");
 }
 
-static void bindProg() {
+void Renderer::MultisampleAntiAliasing() {
+/*/    glGenRenderbuffers(1, defaultRenderbuffer);
+//    glBindRenderbuffer(GL_RENDERBUFFER, defaultRenderbuffer[0]);
+//    //[context renderbufferStorage:GL_RENDERBUFFER fromDrawable:layer];
+//    LOG_INFO("GenRenderbuffers");
+//
+//    glGenFramebuffers(1, defaultFramebuffer);
+//    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebuffer[0]);
+//    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, defaultRenderbuffer[0]);
+//    LOG_INFO("GenFramebuffers");
+//
+//    LOG_INFO("SetWH");
+*/
+    glGenRenderbuffers(1, &m_MSColor);
+    glBindRenderbuffer(GL_RENDERBUFFER, m_MSColor);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGBA8, m_width, m_height);
+    checkGLError("GenMSColorBuffer");
 
-    const GLfloat landscapeOrientationMatrix[16] = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 0.0f, 1.0f };
-    const GLfloat color[4] = {
-            1.0f, 0.0f, 0.0f, 1.0f
-    };
-    glUseProgram( program );
-    glUniformMatrix4fv(uMvp, 1, GL_FALSE, landscapeOrientationMatrix);
-    glUniform4fv(uColor, 1, color);
-    p = glGetAttribLocation(program, "vPosition");
-    p1 = glGetAttribLocation(program, "vPosition1");
+    glGenFramebuffers(1, &m_MSFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_MSFBO);
 
-    glEnableVertexAttribArray( p );
-    glVertexAttribPointer( p , 3, GL_FLOAT, false, 3 * sizeof( float ), squareCoords);
 
-    glEnable(GL_POINT_SMOOTH);
-    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, m_MSColor);
+    checkGLError("FboRbo,COLORATTACHMENT");
 
-    glLineWidth(80);
-    glDrawArrays(GL_POINTS, 0, 4);
-    glDisableVertexAttribArray( p );
-    glFlush();
+    glGenRenderbuffers(1, &m_MSDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, m_MSDepth);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT16, m_width, m_height);
+    checkGLError("GenDepthBuffer");
+
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_MSDepth);
+    checkGLError("DepthBuffer,Renderbuffer");
+    GLenum drawBufs[] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, drawBufs);
+    checkGLError("DrawBuffer");
+
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        LOG_ERROR("failed to make complete framebuffer object %x", glCheckFramebufferStatus(GL_FRAMEBUFFER));
+    }
+}
+
+void Renderer::checkGLError(const char* str) {
+    switch (glGetError())
+    {
+        case GL_NO_ERROR:
+            LOG_INFO("ENOGH:NO_ERROR  %s" , str);
+            break;
+        case GL_INVALID_ENUM:
+            LOG_INFO("ENOCH:INVALID_ENUM %s", str);
+            break;
+        case GL_INVALID_VALUE:
+            LOG_INFO("ENOCH:INVALID_VALUE  %s", str);
+            break;
+        case GL_INVALID_OPERATION:
+            LOG_INFO("ENOCH:INVALID_OPERATION   %s", str);
+            break;
+        case GL_INVALID_FRAMEBUFFER_OPERATION:
+            LOG_INFO("ENOCH:INVALID_FRAMEBUFFER_OPERATION  %s", str);
+            break;
+        case GL_OUT_OF_MEMORY:
+            LOG_INFO("ENOCH:OUT_OF_MEMORY  %s", str);
+            break;
+        default:
+            LOG_INFO("SOMETHING_WRONG  %s", str);
+            break;
+    }
 }

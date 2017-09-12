@@ -19,7 +19,7 @@ android {
     defaultConfig {
         ndk {
             moduleName "nativeegl"
-            ldLibs "log", "android", "EGL", "GLESv2"
+            ldLibs "log", "android", "EGL", "GLESv3"
         }
     }
 }

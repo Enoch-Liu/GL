@@ -18,13 +18,12 @@ package tsaarni.nativeeglexample;
 
 import android.app.Activity;
 import android.os.Bundle;
-import android.widget.Toast;
 import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.SurfaceHolder;
-import android.view.View;
-import android.view.View.OnClickListener;
 import android.util.Log;
+import android.view.View;
+import android.widget.Toast;
 
 
 public class NativeEglExample extends Activity implements SurfaceHolder.Callback
@@ -41,8 +40,9 @@ public class NativeEglExample extends Activity implements SurfaceHolder.Callback
         setContentView(R.layout.main);
         SurfaceView surfaceView = (SurfaceView)findViewById(R.id.surfaceview);
         surfaceView.getHolder().addCallback(this);
-        surfaceView.setOnClickListener(new OnClickListener() {
+        surfaceView.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View view) {
+          //          nativeChangeMode();
                     Toast toast = Toast.makeText(NativeEglExample.this,
                                                  "This demo combines Java UI and native EGL + OpenGL renderer",
                                                  Toast.LENGTH_LONG);
@@ -95,9 +95,9 @@ public class NativeEglExample extends Activity implements SurfaceHolder.Callback
     public static native void nativeOnPause();
     public static native void nativeOnStop();
     public static native void nativeSetSurface(Surface surface);
+    public static native void nativeChangeMode();
 
     static {
         System.loadLibrary("nativeegl");
     }
-
 }

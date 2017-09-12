@@ -58,6 +58,13 @@ JNIEXPORT void JNICALL Java_tsaarni_nativeeglexample_NativeEglExample_nativeOnSt
     return;
 }
 
+JNIEXPORT void JNICALL Java_tsaarni_nativeeglexample_NativeEglExample_nativeChangeMode(JNIEnv* jenv, jobject obj)
+{
+    LOG_INFO("nativeChangeMode");
+    renderer->changeMode();
+    return;
+}
+
 JNIEXPORT void JNICALL Java_tsaarni_nativeeglexample_NativeEglExample_nativeSetSurface(JNIEnv* jenv, jobject obj, jobject surface)
 {
     if (surface != 0) {
